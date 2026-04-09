@@ -1,0 +1,74 @@
+{
+  "fixture_id": "005_aesthetic_abstain",
+  "category": "aesthetic",
+  "purpose": "Парсер выставляет formalizable=false и abstain=true. Ядро пропускается, управление переходит в legacy-режим (старый монолитный судья). Тестирует ветку fallback.",
+  "tags": ["abstain", "legacy_mode"],
+  "skip_core_test": true,
+
+  "input": {
+    "schema_version": "1.0",
+    "request_id": "00000000-0000-4000-8000-000000000005",
+    "task": "Какой из двух вариантов слогана для бренда сильнее эмоционально?",
+    "inputs": [
+      {
+        "id": "in_001",
+        "text": "Brand voice brief: смелый, прямой, без жаргона. Аудитория — креативные профессионалы 25-40.",
+        "source": "brand_brief"
+      },
+      {
+        "id": "in_002",
+        "text": "Variant A: 'Make it real.'",
+        "source": "creative"
+      },
+      {
+        "id": "in_003",
+        "text": "Variant B: 'Stop dreaming. Ship.'",
+        "source": "creative"
+      }
+    ],
+    "conclusion": "Variant B сильнее: он короче, содержит конкретный призыв к действию и резонирует с аудиторией создателей. Variant A слишком абстрактен.",
+    "actions": [],
+    "domain_hint": "writing"
+  },
+
+  "expected_parsed_facts": {
+    "schema_version": "1.0",
+    "request_id": "00000000-0000-4000-8000-000000000005",
+    "task_analysis": {
+      "task_type": "writing",
+      "formalizable": false,
+      "requirements": []
+    },
+    "claims": [],
+    "evidence": [],
+    "requirement_coverage": [],
+    "action_patterns": {
+      "total_actions": 0,
+      "unique_actions": 0,
+      "repeated_groups": []
+    },
+    "alternatives_considered": {
+      "explicit_alternatives_in_conclusion": 1,
+      "contradicting_evidence_addressed": false,
+      "parser_confidence": 0.5
+    },
+    "parser_meta": {
+      "model": "claude-haiku-4-5",
+      "min_confidence": 0.5,
+      "warnings": [],
+      "abstain": true,
+      "abstain_reason": "Эстетическое суждение без объективных критериев — нет formal-проверяемых фактов и требований."
+    }
+  },
+
+  "expected_verdict_raw": null,
+
+  "expected_final": {
+    "verdict": "ESCALATE",
+    "issues": [],
+    "trace_mode": "legacy",
+    "alternative_hypothesis_required": false,
+    "feedback_should_mention": ["эстетическ", "субъектив"],
+    "note": "В legacy-режиме вердикт выносит старый промпт-судья. Точный verdict (ESCALATE/APPROVE/REJECT) и issues зависят от него; здесь зафиксирован только trace_mode='legacy'. e2e тест должен проверять только trace.mode."
+  }
+}

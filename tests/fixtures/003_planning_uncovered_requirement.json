@@ -1,0 +1,131 @@
+{
+  "fixture_id": "003_planning_uncovered_requirement",
+  "category": "planning",
+  "purpose": "REJECT через unsupported_conclusion по ветке 'uncovered must_have requirement'. Claims по покрытым требованиям имеют strong direct support — это доказывает, что вердикт REJECT приходит именно из непокрытого требования, а не из слабой доказательной базы.",
+  "tags": ["unsupported_conclusion", "requirement_coverage"],
+
+  "input": {
+    "schema_version": "1.0",
+    "request_id": "00000000-0000-4000-8000-000000000003",
+    "task": "Создай Q4 маркетинговый план, который должен включать: (a) разбивку бюджета, (b) выбор каналов, (c) метрики успеха.",
+    "inputs": [
+      {
+        "id": "in_001",
+        "text": "Q4 budget allocation: $40k paid social, $25k SEO, $15k content production. Total $80k approved by CFO.",
+        "source": "finance_doc"
+      },
+      {
+        "id": "in_002",
+        "text": "Channel performance Q3: paid social ROAS 3.2x, SEO ROAS 4.8x, content ROAS 2.1x.",
+        "source": "analytics_q3"
+      },
+      {
+        "id": "in_003",
+        "text": "Historical success metrics framework: MQL count, CAC, pipeline contribution, brand lift.",
+        "source": "internal_wiki"
+      }
+    ],
+    "conclusion": "Q4 plan: бюджет $80k разделён на $40k paid social, $25k SEO, $15k content production. Каналы выбраны на основе Q3 ROAS — приоритет SEO (4.8x), затем paid social (3.2x), content в поддерживающей роли.",
+    "actions": [
+      { "step": 1, "name": "fetch_budget", "args": {} },
+      { "step": 2, "name": "fetch_channel_performance", "args": { "quarter": "Q3" } }
+    ],
+    "domain_hint": "planning"
+  },
+
+  "expected_parsed_facts": {
+    "schema_version": "1.0",
+    "request_id": "00000000-0000-4000-8000-000000000003",
+    "task_analysis": {
+      "task_type": "planning",
+      "formalizable": true,
+      "requirements": [
+        { "id": "req_1", "text": "разбивка бюджета", "kind": "must_have" },
+        { "id": "req_2", "text": "выбор каналов", "kind": "must_have" },
+        { "id": "req_3", "text": "метрики успеха", "kind": "must_have" }
+      ]
+    },
+    "claims": [
+      { "id": "cl_1", "text": "Бюджет $80k разделён 40/25/15", "asserted_confidence": "high" },
+      { "id": "cl_2", "text": "Каналы выбраны: приоритет SEO, затем paid social, content в поддержке", "asserted_confidence": "high" }
+    ],
+    "evidence": [
+      {
+        "id": "ev_1",
+        "input_id": "in_001",
+        "supports_claim": "cl_1",
+        "relation": "direct_support",
+        "strength": "strong",
+        "proof_quote": "Q4 budget allocation: $40k paid social, $25k SEO, $15k content production. Total $80k approved by CFO.",
+        "parser_confidence": 0.97
+      },
+      {
+        "id": "ev_2",
+        "input_id": "in_002",
+        "supports_claim": "cl_2",
+        "relation": "direct_support",
+        "strength": "strong",
+        "proof_quote": "paid social ROAS 3.2x, SEO ROAS 4.8x, content ROAS 2.1x",
+        "parser_confidence": 0.95
+      }
+    ],
+    "requirement_coverage": [
+      { "requirement_id": "req_1", "covered": true, "covered_by_claim": "cl_1", "parser_confidence": 0.96 },
+      { "requirement_id": "req_2", "covered": true, "covered_by_claim": "cl_2", "parser_confidence": 0.94 },
+      { "requirement_id": "req_3", "covered": false, "covered_by_claim": null, "parser_confidence": 0.93 }
+    ],
+    "action_patterns": {
+      "total_actions": 2,
+      "unique_actions": 2,
+      "repeated_groups": []
+    },
+    "alternatives_considered": {
+      "explicit_alternatives_in_conclusion": 0,
+      "contradicting_evidence_addressed": true,
+      "parser_confidence": 0.88
+    },
+    "parser_meta": {
+      "model": "claude-haiku-4-5",
+      "min_confidence": 0.88,
+      "warnings": [],
+      "abstain": false,
+      "abstain_reason": null
+    }
+  },
+
+  "expected_verdict_raw": {
+    "schema_version": "1.0",
+    "request_id": "00000000-0000-4000-8000-000000000003",
+    "final_verdict": "reject",
+    "core_confidence": 0.62,
+    "issues": [
+      {
+        "code": "unsupported_conclusion",
+        "source": "base",
+        "triggered_by": {
+          "rule": "issue(unsupported_conclusion)/2",
+          "facts": [
+            "requirement(req_3, must_have, \"метрики успеха\")",
+            "requirement_coverage(req_3, false, _, 0.93)"
+          ]
+        }
+      }
+    ],
+    "uncovered_requirements": [
+      { "requirement_id": "req_3", "kind": "must_have" }
+    ],
+    "parser_meta_passthrough": {
+      "min_confidence": 0.88,
+      "warnings": [],
+      "abstained": false
+    }
+  },
+
+  "expected_final": {
+    "verdict": "REJECT",
+    "issues": ["unsupported_conclusion"],
+    "trace_mode": "hybrid",
+    "alternative_hypothesis_required": false,
+    "feedback_should_mention": ["метрик", "req_3", "не покрыто"]
+  }
+}

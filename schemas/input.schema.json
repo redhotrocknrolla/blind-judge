@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://blind-judge.dev/schemas/input.schema.json",
+  "title": "Blind Judge Input",
+  "description": "Сырой вход от роутера к Blind Judge.",
+  "type": "object",
+  "required": ["schema_version", "request_id", "task", "inputs", "conclusion", "actions"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "request_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "task": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Исходная задача основного агента."
+    },
+    "inputs": {
+      "type": "array",
+      "description": "Материалы, на которые опирался агент.",
+      "items": {
+        "type": "object",
+        "required": ["id", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^in_\\d{3,}$"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "null" }
+            ]
+          }
+        }
+      }
+    },
+    "conclusion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Финальный вывод/результат основного агента."
+    },
+    "actions": {
+      "type": "array",
+      "description": "Лог действий агента. Может быть пустым.",
+      "items": {
+        "type": "object",
+        "required": ["step", "name"],
+        "additionalProperties": false,
+        "properties": {
+          "step": { "type": "integer", "minimum": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "args": { "type": "object" }
+        }
+      }
+    },
+    "domain_hint": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["medical", "code", "research", "writing", "diagnostic", "planning", "analysis", "other"]
+        },
+        { "type": "null" }
+      ]
+    }
+  }
+}

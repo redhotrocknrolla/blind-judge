@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://blind-judge.dev/schemas/verdict_raw.schema.json",
+  "title": "Raw Verdict",
+  "description": "Выход Prolog-ядра, вход формулировщика. Структурное решение, без живого языка.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "request_id",
+    "final_verdict",
+    "core_confidence",
+    "issues",
+    "uncovered_requirements",
+    "parser_meta_passthrough"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "request_id": { "type": "string", "format": "uuid" },
+
+    "final_verdict": {
+      "enum": ["approve", "escalate", "reject"]
+    },
+
+    "core_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "source", "triggered_by"],
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "Базовые: process_loop, weak_evidence, confirmation_bias, unsupported_conclusion. Пользовательские — любые в snake_case."
+          },
+          "source": { "enum": ["base", "user"] },
+          "triggered_by": {
+            "type": "object",
+            "required": ["rule", "facts"],
+            "additionalProperties": false,
+            "properties": {
+              "rule": {
+                "type": "string",
+                "description": "Идентификатор сработавшего Prolog-правила."
+              },
+              "facts": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Факты Prolog, на которых правило сработало. Используется формулировщиком для генерации feedback."
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "uncovered_requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["requirement_id", "kind"],
+        "additionalProperties": false,
+        "properties": {
+          "requirement_id": { "type": "string", "pattern": "^req_\\d+$" },
+          "kind": { "enum": ["must_have", "should_have", "constraint"] }
+        }
+      }
+    },
+
+    "parser_meta_passthrough": {
+      "type": "object",
+      "required": ["min_confidence", "warnings", "abstained"],
+      "additionalProperties": false,
+      "properties": {
+        "min_confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "warnings": { "type": "array", "items": { "type": "string" } },
+        "abstained": { "type": "boolean" }
+      }
+    }
+  }
+}

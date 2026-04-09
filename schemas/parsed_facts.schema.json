@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://blind-judge.dev/schemas/parsed_facts.schema.json",
+  "title": "Parsed Facts",
+  "description": "Структурированный выход парсера, вход в Prolog-ядро. Только контролируемый словарь.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "request_id",
+    "task_analysis",
+    "claims",
+    "evidence",
+    "requirement_coverage",
+    "action_patterns",
+    "alternatives_considered",
+    "parser_meta"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "request_id": { "type": "string", "format": "uuid" },
+
+    "task_analysis": {
+      "type": "object",
+      "required": ["task_type", "formalizable", "requirements"],
+      "additionalProperties": false,
+      "properties": {
+        "task_type": {
+          "type": "string",
+          "enum": ["diagnostic", "research", "writing", "code", "planning", "analysis", "other"]
+        },
+        "formalizable": {
+          "type": "boolean",
+          "description": "false → ядро пропускается, переход в legacy-режим."
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "text", "kind"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^req_\\d+$" },
+              "text": { "type": "string", "minLength": 1 },
+              "kind": { "enum": ["must_have", "should_have", "constraint"] }
+            }
+          }
+        }
+      }
+    },
+
+    "claims": {
+      "type": "array",
+      "description": "Атомарные претензии, извлечённые из conclusion.",
+      "items": {
+        "type": "object",
+        "required": ["id", "text", "asserted_confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^cl_\\d+$" },
+          "text": { "type": "string", "minLength": 1 },
+          "asserted_confidence": {
+            "enum": ["high", "medium", "low", "unstated"]
+          }
+        }
+      }
+    },
+
+    "evidence": {
+      "type": "array",
+      "description": "Связь между inputs и claims с обязательной цитатой-пруфом.",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "input_id",
+          "supports_claim",
+          "relation",
+          "strength",
+          "proof_quote",
+          "parser_confidence"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^ev_\\d+$" },
+          "input_id": { "type": "string", "pattern": "^in_\\d{3,}$" },
+          "supports_claim": { "type": "string", "pattern": "^cl_\\d+$" },
+          "relation": {
+            "enum": ["direct_support", "indirect_support", "contradicts", "irrelevant"]
+          },
+          "strength": { "enum": ["strong", "moderate", "weak"] },
+          "proof_quote": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Дословная цитата из inputs[input_id].text. Без цитаты factus отбрасывается."
+          },
+          "parser_confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    },
+
+    "requirement_coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["requirement_id", "covered", "parser_confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "requirement_id": { "type": "string", "pattern": "^req_\\d+$" },
+          "covered": { "type": "boolean" },
+          "covered_by_claim": {
+            "oneOf": [
+              { "type": "string", "pattern": "^cl_\\d+$" },
+              { "type": "null" }
+            ]
+          },
+          "parser_confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    },
+
+    "action_patterns": {
+      "type": "object",
+      "required": ["total_actions", "unique_actions", "repeated_groups"],
+      "additionalProperties": false,
+      "properties": {
+        "total_actions": { "type": "integer", "minimum": 0 },
+        "unique_actions": { "type": "integer", "minimum": 0 },
+        "repeated_groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "args_signature", "occurrences", "new_info_between"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "args_signature": { "type": "string" },
+              "occurrences": { "type": "integer", "minimum": 2 },
+              "new_info_between": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+
+    "alternatives_considered": {
+      "type": "object",
+      "required": [
+        "explicit_alternatives_in_conclusion",
+        "contradicting_evidence_addressed",
+        "parser_confidence"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "explicit_alternatives_in_conclusion": { "type": "integer", "minimum": 0 },
+        "contradicting_evidence_addressed": { "type": "boolean" },
+        "parser_confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+
+    "parser_meta": {
+      "type": "object",
+      "required": ["model", "min_confidence", "warnings", "abstain"],
+      "additionalProperties": false,
+      "properties": {
+        "model": { "type": "string", "minLength": 1 },
+        "min_confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Минимум по всем parser_confidence в этом документе."
+        },
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "abstain": { "type": "boolean" },
+        "abstain_reason": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "null" }
+          ]
+        }
+      }
+    }
+  }
+}

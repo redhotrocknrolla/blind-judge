@@ -1,0 +1,121 @@
+{
+  "fixture_id": "004_code_clean_approve",
+  "category": "code",
+  "purpose": "Чистый APPROVE — все требования покрыты, claims подкреплены strong direct support, нет противоречий, нет лупов. Базовая регрессия на путь approve.",
+  "tags": ["approve", "happy_path"],
+
+  "input": {
+    "schema_version": "1.0",
+    "request_id": "00000000-0000-4000-8000-000000000004",
+    "task": "Подтвердить, что off-by-one баг в пагинации (PAG-142) исправлен.",
+    "inputs": [
+      {
+        "id": "in_001",
+        "text": "Failing test before fix: pagination_test.py::test_last_page expected items=[8,9,10] got items=[8,9]. AssertionError.",
+        "source": "ci_log_before"
+      },
+      {
+        "id": "in_002",
+        "text": "Diff in pagination.py line 47: changed `while i < total - 1` to `while i < total`. PR #312.",
+        "source": "git_diff"
+      },
+      {
+        "id": "in_003",
+        "text": "Passing test after fix: pagination_test.py::test_last_page PASSED. All 14 pagination tests green.",
+        "source": "ci_log_after"
+      }
+    ],
+    "conclusion": "Баг PAG-142 исправлен: условие цикла в pagination.py:47 скорректировано, последняя страница теперь содержит все элементы. Все 14 тестов пагинации проходят.",
+    "actions": [
+      { "step": 1, "name": "run_tests", "args": { "suite": "pagination" } }
+    ],
+    "domain_hint": "code"
+  },
+
+  "expected_parsed_facts": {
+    "schema_version": "1.0",
+    "request_id": "00000000-0000-4000-8000-000000000004",
+    "task_analysis": {
+      "task_type": "code",
+      "formalizable": true,
+      "requirements": [
+        { "id": "req_1", "text": "подтвердить, что баг PAG-142 исправлен", "kind": "must_have" }
+      ]
+    },
+    "claims": [
+      { "id": "cl_1", "text": "Баг PAG-142 исправлен изменением условия цикла в pagination.py:47", "asserted_confidence": "high" },
+      { "id": "cl_2", "text": "Все 14 тестов пагинации проходят", "asserted_confidence": "high" }
+    ],
+    "evidence": [
+      {
+        "id": "ev_1",
+        "input_id": "in_001",
+        "supports_claim": "cl_1",
+        "relation": "direct_support",
+        "strength": "strong",
+        "proof_quote": "expected items=[8,9,10] got items=[8,9]. AssertionError",
+        "parser_confidence": 0.96
+      },
+      {
+        "id": "ev_2",
+        "input_id": "in_002",
+        "supports_claim": "cl_1",
+        "relation": "direct_support",
+        "strength": "strong",
+        "proof_quote": "changed `while i < total - 1` to `while i < total`",
+        "parser_confidence": 0.98
+      },
+      {
+        "id": "ev_3",
+        "input_id": "in_003",
+        "supports_claim": "cl_2",
+        "relation": "direct_support",
+        "strength": "strong",
+        "proof_quote": "All 14 pagination tests green",
+        "parser_confidence": 0.97
+      }
+    ],
+    "requirement_coverage": [
+      { "requirement_id": "req_1", "covered": true, "covered_by_claim": "cl_1", "parser_confidence": 0.97 }
+    ],
+    "action_patterns": {
+      "total_actions": 1,
+      "unique_actions": 1,
+      "repeated_groups": []
+    },
+    "alternatives_considered": {
+      "explicit_alternatives_in_conclusion": 0,
+      "contradicting_evidence_addressed": true,
+      "parser_confidence": 0.91
+    },
+    "parser_meta": {
+      "model": "claude-haiku-4-5",
+      "min_confidence": 0.91,
+      "warnings": [],
+      "abstain": false,
+      "abstain_reason": null
+    }
+  },
+
+  "expected_verdict_raw": {
+    "schema_version": "1.0",
+    "request_id": "00000000-0000-4000-8000-000000000004",
+    "final_verdict": "approve",
+    "core_confidence": 0.86,
+    "issues": [],
+    "uncovered_requirements": [],
+    "parser_meta_passthrough": {
+      "min_confidence": 0.91,
+      "warnings": [],
+      "abstained": false
+    }
+  },
+
+  "expected_final": {
+    "verdict": "APPROVE",
+    "issues": [],
+    "trace_mode": "hybrid",
+    "alternative_hypothesis_required": false,
+    "feedback_should_mention": []
+  }
+}

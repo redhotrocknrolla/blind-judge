@@ -1,0 +1,113 @@
+{
+  "fixture_id": "006_parser_low_confidence_guard",
+  "category": "diagnostic",
+  "purpose": "Тестирует confidence escalation guard. Базовые правила дают APPROVE (нет issues), но parser_meta.min_confidence < 0.75 → final_verdict принудительно поднимается до escalate. Без этого механизма ошибки парсера прошли бы как зелёный свет.",
+  "tags": ["confidence_guard", "approve_to_escalate"],
+
+  "input": {
+    "schema_version": "1.0",
+    "request_id": "00000000-0000-4000-8000-000000000006",
+    "task": "Определить, связан ли рост latency на API gateway с недавним релизом v2.4.1.",
+    "inputs": [
+      {
+        "id": "in_001",
+        "text": "API gateway p95 latency: 120ms (week before release) → 180ms (week after release).",
+        "source": "metrics"
+      },
+      {
+        "id": "in_002",
+        "text": "Release v2.4.1 deployed 2026-04-01 14:00 UTC. Changes: refactored auth middleware, updated TLS library.",
+        "source": "release_notes"
+      },
+      {
+        "id": "in_003",
+        "text": "Traffic volume: comparable week-over-week, no spikes.",
+        "source": "traffic_log"
+      }
+    ],
+    "conclusion": "Рост latency с 120ms до 180ms связан с релизом v2.4.1 — наиболее вероятно из-за нового auth middleware.",
+    "actions": [
+      { "step": 1, "name": "fetch_latency_metrics", "args": { "period": "2w" } },
+      { "step": 2, "name": "fetch_release_diff", "args": { "version": "v2.4.1" } }
+    ],
+    "domain_hint": "diagnostic"
+  },
+
+  "expected_parsed_facts": {
+    "schema_version": "1.0",
+    "request_id": "00000000-0000-4000-8000-000000000006",
+    "task_analysis": {
+      "task_type": "diagnostic",
+      "formalizable": true,
+      "requirements": [
+        { "id": "req_1", "text": "определить связь latency с релизом v2.4.1", "kind": "must_have" }
+      ]
+    },
+    "claims": [
+      { "id": "cl_1", "text": "Рост latency связан с релизом v2.4.1", "asserted_confidence": "medium" }
+    ],
+    "evidence": [
+      {
+        "id": "ev_1",
+        "input_id": "in_001",
+        "supports_claim": "cl_1",
+        "relation": "indirect_support",
+        "strength": "moderate",
+        "proof_quote": "120ms (week before release) → 180ms (week after release)",
+        "parser_confidence": 0.62
+      },
+      {
+        "id": "ev_2",
+        "input_id": "in_003",
+        "supports_claim": "cl_1",
+        "relation": "indirect_support",
+        "strength": "moderate",
+        "proof_quote": "Traffic volume: comparable week-over-week, no spikes",
+        "parser_confidence": 0.71
+      }
+    ],
+    "requirement_coverage": [
+      { "requirement_id": "req_1", "covered": true, "covered_by_claim": "cl_1", "parser_confidence": 0.74 }
+    ],
+    "action_patterns": {
+      "total_actions": 2,
+      "unique_actions": 2,
+      "repeated_groups": []
+    },
+    "alternatives_considered": {
+      "explicit_alternatives_in_conclusion": 1,
+      "contradicting_evidence_addressed": true,
+      "parser_confidence": 0.7
+    },
+    "parser_meta": {
+      "model": "claude-haiku-4-5",
+      "min_confidence": 0.62,
+      "warnings": ["low_classification_confidence"],
+      "abstain": false,
+      "abstain_reason": null
+    }
+  },
+
+  "expected_verdict_raw": {
+    "schema_version": "1.0",
+    "request_id": "00000000-0000-4000-8000-000000000006",
+    "final_verdict": "escalate",
+    "core_confidence": 0.59,
+    "issues": [],
+    "uncovered_requirements": [],
+    "parser_meta_passthrough": {
+      "min_confidence": 0.62,
+      "warnings": ["low_classification_confidence"],
+      "abstained": false
+    }
+  },
+
+  "expected_final": {
+    "verdict": "ESCALATE",
+    "issues": [],
+    "trace_mode": "hybrid",
+    "alternative_hypothesis_required": true,
+    "feedback_should_mention": ["низкая уверенность", "перепроверить"],
+    "note": "Базовые правила issue/1 не сработали — issues пуст. Вердикт escalate приходит из confidence guard: parser_min_confidence=0.62 < 0.75, поэтому approve поднимается до escalate. core_confidence считается с base_score(0)=0.95, но домножается на 0.62 → ~0.59."
+  }
+}

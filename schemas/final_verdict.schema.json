@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://blind-judge.dev/schemas/final_verdict.schema.json",
+  "title": "Final Verdict",
+  "description": "Финальный ответ Blind Judge роутеру. Совместим с текущим выходным форматом старого SKILL.md.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "request_id",
+    "verdict",
+    "confidence",
+    "issues",
+    "alternative_hypothesis",
+    "feedback",
+    "trace"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "request_id": { "type": "string", "format": "uuid" },
+
+    "verdict": {
+      "enum": ["APPROVE", "ESCALATE", "REJECT"]
+    },
+
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$"
+      }
+    },
+
+    "alternative_hypothesis": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "null" }
+      ]
+    },
+
+    "feedback": {
+      "type": "string",
+      "description": "Пустая строка при APPROVE."
+    },
+
+    "trace": {
+      "type": "object",
+      "required": ["rules_fired", "parser_warnings", "core_confidence", "mode"],
+      "additionalProperties": false,
+      "properties": {
+        "rules_fired": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "parser_warnings": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "core_confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "mode": {
+          "enum": ["hybrid", "legacy"],
+          "description": "hybrid — нормальный путь parser→core→formulator. legacy — fallback на старый монолитный судья при abstain."
+        }
+      }
+    }
+  }
+}

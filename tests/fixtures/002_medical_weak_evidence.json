@@ -1,0 +1,143 @@
+{
+  "fixture_id": "002_medical_weak_evidence",
+  "category": "research",
+  "purpose": "ESCALATE через weak_evidence + confirmation_bias без условий REJECT. Демонстрирует, что даже при высоких claims без strong direct support и проигнорированной противоречащей доказательной базе вердикт — escalation, не reject (потому что нет process_loop).",
+  "tags": ["weak_evidence", "confirmation_bias"],
+
+  "input": {
+    "schema_version": "1.0",
+    "request_id": "00000000-0000-4000-8000-000000000002",
+    "task": "Подтверждена ли эффективность препарата X при состоянии Y?",
+    "inputs": [
+      {
+        "id": "in_001",
+        "text": "Источник A (n=42, открытое исследование без контроля, 2022): улучшение симптомов отмечено у 60% пациентов.",
+        "source": "pubmed:12345"
+      },
+      {
+        "id": "in_002",
+        "text": "Источник B (мета-обзор Cochrane 2023): доступные данные противоречивы, рандомизированных контролируемых исследований эффективности препарата X при состоянии Y не проведено.",
+        "source": "cochrane:67890"
+      },
+      {
+        "id": "in_003",
+        "text": "Источник C (буклет производителя препарата): эффективность препарата X при состоянии Y составляет 85%.",
+        "source": "manufacturer_brochure"
+      }
+    ],
+    "conclusion": "Препарат X эффективен при состоянии Y.",
+    "actions": [],
+    "domain_hint": "medical"
+  },
+
+  "expected_parsed_facts": {
+    "schema_version": "1.0",
+    "request_id": "00000000-0000-4000-8000-000000000002",
+    "task_analysis": {
+      "task_type": "research",
+      "formalizable": true,
+      "requirements": [
+        { "id": "req_1", "text": "ответить на вопрос об эффективности препарата X при состоянии Y", "kind": "must_have" }
+      ]
+    },
+    "claims": [
+      { "id": "cl_1", "text": "Препарат X эффективен при состоянии Y", "asserted_confidence": "high" }
+    ],
+    "evidence": [
+      {
+        "id": "ev_1",
+        "input_id": "in_001",
+        "supports_claim": "cl_1",
+        "relation": "indirect_support",
+        "strength": "weak",
+        "proof_quote": "n=42, открытое исследование без контроля",
+        "parser_confidence": 0.91
+      },
+      {
+        "id": "ev_2",
+        "input_id": "in_002",
+        "supports_claim": "cl_1",
+        "relation": "contradicts",
+        "strength": "moderate",
+        "proof_quote": "доступные данные противоречивы, рандомизированных контролируемых исследований эффективности препарата X при состоянии Y не проведено",
+        "parser_confidence": 0.94
+      },
+      {
+        "id": "ev_3",
+        "input_id": "in_003",
+        "supports_claim": "cl_1",
+        "relation": "direct_support",
+        "strength": "weak",
+        "proof_quote": "эффективность препарата X при состоянии Y составляет 85%",
+        "parser_confidence": 0.79
+      }
+    ],
+    "requirement_coverage": [
+      {
+        "requirement_id": "req_1",
+        "covered": true,
+        "covered_by_claim": "cl_1",
+        "parser_confidence": 0.92
+      }
+    ],
+    "action_patterns": {
+      "total_actions": 0,
+      "unique_actions": 0,
+      "repeated_groups": []
+    },
+    "alternatives_considered": {
+      "explicit_alternatives_in_conclusion": 0,
+      "contradicting_evidence_addressed": false,
+      "parser_confidence": 0.88
+    },
+    "parser_meta": {
+      "model": "claude-haiku-4-5",
+      "min_confidence": 0.79,
+      "warnings": [],
+      "abstain": false,
+      "abstain_reason": null
+    }
+  },
+
+  "expected_verdict_raw": {
+    "schema_version": "1.0",
+    "request_id": "00000000-0000-4000-8000-000000000002",
+    "final_verdict": "escalate",
+    "core_confidence": 0.36,
+    "issues": [
+      {
+        "code": "weak_evidence",
+        "source": "base",
+        "triggered_by": {
+          "rule": "issue(weak_evidence)/1",
+          "facts": ["claim(cl_1, _, high)", "no_evidence(direct_support, strong, cl_1)"]
+        }
+      },
+      {
+        "code": "confirmation_bias",
+        "source": "base",
+        "triggered_by": {
+          "rule": "issue(confirmation_bias)",
+          "facts": [
+            "evidence(ev_2, in_002, cl_1, contradicts, moderate, 0.94)",
+            "alternatives_considered(0, false, 0.88)"
+          ]
+        }
+      }
+    ],
+    "uncovered_requirements": [],
+    "parser_meta_passthrough": {
+      "min_confidence": 0.79,
+      "warnings": [],
+      "abstained": false
+    }
+  },
+
+  "expected_final": {
+    "verdict": "ESCALATE",
+    "issues": ["confirmation_bias", "weak_evidence"],
+    "trace_mode": "hybrid",
+    "alternative_hypothesis_required": true,
+    "feedback_should_mention": ["Cochrane", "RCT", "альтернатив", "конфликт интересов"]
+  }
+}
