@@ -186,21 +186,94 @@ print(result["judge_verdict"])  # финальный вердикт Judge
 
 ---
 
+## Сценарий C — CLI-режим (модель сама является судьёй)
+
+Если скилл вызывается через Claude Code или любой CLI-агент,
+**модель не делает отдельных API вызовов** — она сама выполняет
+роль парсера и формулировщика, читая промпты напрямую.
+Только Prolog-ядро запускается как subprocess.
+
+### Шаг 1 — Парсинг (модель читает промпт сама)
+
+Прочитай файл `src/parser/prompts/parser_v1.md`.
+Подставь входные данные вместо `{{INPUT_JSON}}`.
+Выполни инструкцию промпта и сформируй `parsed_facts` JSON
+по схеме `schemas/parsed_facts.schema.json`.
+
+```python
+# Проверить что parsed_facts валиден:
+import json, jsonschema
+schema = json.load(open("schemas/parsed_facts.schema.json"))
+jsonschema.validate(instance=parsed_facts, schema=schema)
+```
+
+### Шаг 2 — Prolog-ядро (subprocess)
+
+```python
+import sys
+sys.path.insert(0, "src")
+from judge_core import run
+
+verdict_raw = run(parsed_facts)
+# или с пользовательскими правилами:
+verdict_raw = run(parsed_facts, user_rules="path/to/rules.pl")
+```
+
+### Шаг 3 — Формулировка (модель читает промпт сама)
+
+Прочитай файл `src/formulator/prompts/formulator_v1.md`.
+Подставь оригинальный `input` вместо `{{INPUT_JSON}}`
+и `verdict_raw` вместо `{{VERDICT_RAW_JSON}}`.
+Выполни инструкцию промпта и сформируй `final_verdict` JSON
+по схеме `schemas/final_verdict.schema.json`.
+
+### Полный CLI-пример
+
+```python
+import sys, json, jsonschema
+sys.path.insert(0, "src")
+from judge_core import run
+
+# 1. Модель читает промпт и формирует parsed_facts
+parser_prompt = open("src/parser/prompts/parser_v1.md").read()
+input_data = json.load(open("tests/fixtures/001_redis_loop.json"))["input"]
+# ... модель применяет parser_prompt к input_data → parsed_facts
+
+# 2. Prolog-ядро
+verdict_raw = run(parsed_facts)
+
+# 3. Модель читает промпт и формирует финальный вердикт
+formulator_prompt = open("src/formulator/prompts/formulator_v1.md").read()
+# ... модель применяет formulator_prompt к (input_data, verdict_raw) → final_verdict
+```
+
+### Когда использовать CLI-режим
+
+| Условие | Режим |
+|---|---|
+| Модель = Claude Code / агент CLI | **CLI-режим** (этот сценарий) |
+| Внешний агент, нужен API | Сценарий A / B (`judge.py`) |
+| Баланс API исчерпан / нет ключа | **CLI-режим** |
+| Нужна изоляция (отдельный LLM) | Сценарий A / B (`judge.py`) |
+
+---
+
 ## Установка
 
 ```bash
 git clone https://github.com/redhotrocknrolla/blind-judge
 cd blind-judge
-pip3 install openai fastapi uvicorn pyyaml jsonschema
+pip3 install anthropic openai fastapi uvicorn pyyaml jsonschema
 
 # Конфиг
 mkdir -p ~/.blind-judge
 cat > ~/.blind-judge/config.yaml << EOF
 llm:
   base_url: "https://api.anthropic.com"
-  api_key: "ваш-ключ"
+  api_key: "${ANTHROPIC_API_KEY}"
   model: "claude-haiku-4-5"
 EOF
 ```
 
 Judge использует модель клиента — своей модели нет.
+В CLI-режиме модель агента сама является и парсером, и формулировщиком.

@@ -8,7 +8,7 @@ import sys
 import json
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
@@ -32,14 +32,9 @@ def load_fixture(name: str) -> dict:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
-def mock_response(content: dict):
-    msg = MagicMock()
-    msg.content = json.dumps(content, ensure_ascii=False)
-    choice = MagicMock()
-    choice.message = msg
-    resp = MagicMock()
-    resp.choices = [choice]
-    return resp
+def mock_response(content: dict) -> str:
+    """Возвращает строку JSON — то, что возвращает _call_llm."""
+    return json.dumps(content, ensure_ascii=False)
 
 
 def make_final_verdict(fixture: dict) -> dict:
@@ -71,12 +66,8 @@ class TestE2E(unittest.TestCase):
         parsed_facts = fixture["expected_parsed_facts"]
         final = make_final_verdict(fixture)
 
-        with patch("parser.bj_parser.OpenAI") as MockParser, \
-             patch("formulator.formulator.OpenAI") as MockFormulator:
-
-            MockParser.return_value.chat.completions.create.return_value = mock_response(parsed_facts)
-            MockFormulator.return_value.chat.completions.create.return_value = mock_response(final)
-
+        with patch("parser.bj_parser._call_llm", return_value=mock_response(parsed_facts)), \
+             patch("formulator.formulator._call_llm", return_value=mock_response(final)):
             result = audit(input_data, CONFIG)
 
         return result, fixture["expected_final"]
@@ -120,12 +111,8 @@ class TestE2E(unittest.TestCase):
             "issues": []
         }
 
-        with patch("parser.bj_parser.OpenAI") as MockParser, \
-             patch("judge.OpenAI") as MockLegacy:
-
-            MockParser.return_value.chat.completions.create.return_value = mock_response(parsed_facts)
-            MockLegacy.return_value.chat.completions.create.return_value = mock_response(legacy_response)
-
+        with patch("parser.bj_parser._call_llm", return_value=mock_response(parsed_facts)), \
+             patch("judge._call_llm", return_value=mock_response(legacy_response)):
             result = audit(input_data, CONFIG)
 
         self.assertEqual(result["trace"]["mode"], "legacy")

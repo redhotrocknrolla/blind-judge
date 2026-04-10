@@ -7,7 +7,7 @@ import sys
 import json
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
@@ -27,15 +27,9 @@ MOCK_CONFIG = {
 }
 
 
-def mock_llm_response(parsed_facts: dict):
-    """Возвращает мок OpenAI-совместимого ответа с готовым JSON."""
-    msg = MagicMock()
-    msg.content = json.dumps(parsed_facts, ensure_ascii=False)
-    choice = MagicMock()
-    choice.message = msg
-    resp = MagicMock()
-    resp.choices = [choice]
-    return resp
+def mock_llm_response(parsed_facts: dict) -> str:
+    """Возвращает строку JSON — то, что возвращает _call_llm."""
+    return json.dumps(parsed_facts, ensure_ascii=False)
 
 
 class TestExtractJson(unittest.TestCase):
@@ -69,9 +63,7 @@ class TestParserOnFixtures(unittest.TestCase):
         input_data = fixture["input"]
         expected = fixture["expected_parsed_facts"]
 
-        with patch("parser.bj_parser.OpenAI") as MockOpenAI:
-            instance = MockOpenAI.return_value
-            instance.chat.completions.create.return_value = mock_llm_response(expected)
+        with patch("parser.bj_parser._call_llm", return_value=mock_llm_response(expected)):
             result = parse(input_data, MOCK_CONFIG)
 
         return result, expected
@@ -114,9 +106,7 @@ class TestParserOnFixtures(unittest.TestCase):
         input_data = fixture["input"]
         expected = fixture["expected_parsed_facts"]
 
-        with patch("parser.bj_parser.OpenAI") as MockOpenAI:
-            instance = MockOpenAI.return_value
-            instance.chat.completions.create.return_value = mock_llm_response(expected)
+        with patch("parser.bj_parser._call_llm", return_value=mock_llm_response(expected)):
             result = parse(input_data, MOCK_CONFIG)
 
         self.assertTrue(result["parser_meta"]["abstain"])
@@ -128,18 +118,8 @@ class TestParserOnFixtures(unittest.TestCase):
         input_data = fixture["input"]
         expected = fixture["expected_parsed_facts"]
 
-        bad_msg = MagicMock()
-        bad_msg.content = "это не json {"
-        bad_choice = MagicMock()
-        bad_choice.message = bad_msg
-        bad_resp = MagicMock()
-        bad_resp.choices = [bad_choice]
-
-        good_resp = mock_llm_response(expected)
-
-        with patch("parser.bj_parser.OpenAI") as MockOpenAI:
-            instance = MockOpenAI.return_value
-            instance.chat.completions.create.side_effect = [bad_resp, good_resp]
+        with patch("parser.bj_parser._call_llm",
+                   side_effect=["это не json {", mock_llm_response(expected)]):
             result = parse(input_data, MOCK_CONFIG)
 
         self.assertEqual(result["schema_version"], "1.0")
@@ -149,16 +129,7 @@ class TestParserOnFixtures(unittest.TestCase):
         fixture = self._load_fixture("001_redis_loop.json")
         input_data = fixture["input"]
 
-        bad_msg = MagicMock()
-        bad_msg.content = "не json"
-        bad_choice = MagicMock()
-        bad_choice.message = bad_msg
-        bad_resp = MagicMock()
-        bad_resp.choices = [bad_choice]
-
-        with patch("parser.bj_parser.OpenAI") as MockOpenAI:
-            instance = MockOpenAI.return_value
-            instance.chat.completions.create.return_value = bad_resp
+        with patch("parser.bj_parser._call_llm", return_value="не json"):
             result = parse(input_data, MOCK_CONFIG)
 
         self.assertTrue(result["parser_meta"]["abstain"])

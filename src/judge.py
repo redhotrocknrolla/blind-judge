@@ -15,7 +15,33 @@ from config import load_config
 from parser.bj_parser import parse
 from core.run_core import run_core
 from formulator.formulator import formulate
-from openai import OpenAI
+
+
+def _call_llm(llm_cfg: dict, prompt: str) -> str:
+    """Вызывает LLM: anthropic SDK если base_url содержит 'anthropic.com', иначе openai SDK."""
+    base_url = llm_cfg["base_url"]
+    api_key = llm_cfg["api_key"]
+    model = llm_cfg["model"]
+    max_tokens = llm_cfg.get("max_tokens", 4096)
+
+    if "anthropic.com" in base_url:
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.content[0].text
+    else:
+        from openai import OpenAI
+        client = OpenAI(base_url=base_url, api_key=api_key)
+        response = client.chat.completions.create(
+            model=model,
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.choices[0].message.content
 
 
 def audit(input_data: dict, config: dict = None, user_rules: str = None) -> dict:
@@ -39,7 +65,6 @@ def _load_legacy_prompt() -> str:
 
 def _legacy_audit(input_data: dict, parsed_facts: dict, config: dict) -> dict:
     llm_cfg = config["llm"]
-    client = OpenAI(base_url=llm_cfg["base_url"], api_key=llm_cfg["api_key"])
 
     facts = [i["text"] for i in input_data.get("inputs", [])]
     tool_trace = [
@@ -65,12 +90,7 @@ def _legacy_audit(input_data: dict, parsed_facts: dict, config: dict) -> dict:
     )
 
     try:
-        response = client.chat.completions.create(
-            model=llm_cfg["model"],
-            max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        text = response.choices[0].message.content.strip()
+        text = _call_llm({**llm_cfg, "max_tokens": 1024}, prompt).strip()
         match = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", text)
         if match:
             text = match.group(1)

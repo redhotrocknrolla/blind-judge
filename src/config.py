@@ -49,6 +49,12 @@ def load_config() -> dict:
     if os.environ.get("BLIND_JUDGE_PORT"):
         config["server"]["port"] = int(os.environ["BLIND_JUDGE_PORT"])
 
+    # Раскрываем ${VAR} в api_key если задан через yaml
+    api_key = config["llm"]["api_key"]
+    if isinstance(api_key, str) and api_key.startswith("${") and api_key.endswith("}"):
+        var_name = api_key[2:-1]
+        config["llm"]["api_key"] = os.environ.get(var_name, "")
+
     # Fallback на стандартные ключи
     if not config["llm"]["api_key"]:
         config["llm"]["api_key"] = os.environ.get("ANTHROPIC_API_KEY") or \

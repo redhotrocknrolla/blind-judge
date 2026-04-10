@@ -10,11 +10,37 @@ import re
 from pathlib import Path
 
 import jsonschema
-from openai import OpenAI
 
 ROOT = Path(__file__).parent.parent.parent
 PROMPT_PATH = Path(__file__).parent / "prompts" / "parser_v1.md"
 SCHEMA_PATH = ROOT / "schemas" / "parsed_facts.schema.json"
+
+
+def _call_llm(llm_cfg: dict, prompt: str) -> str:
+    """Вызывает LLM: anthropic SDK если base_url содержит 'anthropic.com', иначе openai SDK."""
+    base_url = llm_cfg["base_url"]
+    api_key = llm_cfg["api_key"]
+    model = llm_cfg["model"]
+    max_tokens = llm_cfg.get("max_tokens", 4096)
+
+    if "anthropic.com" in base_url:
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.content[0].text
+    else:
+        from openai import OpenAI
+        client = OpenAI(base_url=base_url, api_key=api_key)
+        response = client.chat.completions.create(
+            model=model,
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.choices[0].message.content
 
 
 def load_prompt() -> str:
@@ -42,11 +68,6 @@ def parse(input_data: dict, config: dict) -> dict:
     parser_cfg = config["parser"]
     max_retries = parser_cfg.get("max_retries", 2)
 
-    client = OpenAI(
-        base_url=llm_cfg["base_url"],
-        api_key=llm_cfg["api_key"],
-    )
-
     prompt_template = load_prompt()
     schema = load_schema()
     prompt = build_prompt(prompt_template, input_data)
@@ -54,12 +75,7 @@ def parse(input_data: dict, config: dict) -> dict:
     last_error = None
     for attempt in range(1, max_retries + 2):
         try:
-            response = client.chat.completions.create(
-                model=llm_cfg["model"],
-                max_tokens=llm_cfg.get("max_tokens", 4096),
-                messages=[{"role": "user", "content": prompt}]
-            )
-            raw_text = response.choices[0].message.content
+            raw_text = _call_llm(llm_cfg, prompt)
             result = extract_json(raw_text)
 
             if result.get("schema_version") != "1.0":

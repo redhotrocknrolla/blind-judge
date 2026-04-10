@@ -7,7 +7,7 @@ import sys
 import json
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
@@ -52,14 +52,9 @@ def make_final_verdict(fixture: dict) -> dict:
     }
 
 
-def mock_llm_response(final_verdict: dict):
-    msg = MagicMock()
-    msg.content = json.dumps(final_verdict, ensure_ascii=False)
-    choice = MagicMock()
-    choice.message = msg
-    resp = MagicMock()
-    resp.choices = [choice]
-    return resp
+def mock_llm_response(final_verdict: dict) -> str:
+    """Возвращает строку JSON — то, что возвращает _call_llm."""
+    return json.dumps(final_verdict, ensure_ascii=False)
 
 
 class TestStructuralValidation(unittest.TestCase):
@@ -112,9 +107,7 @@ class TestFormulatorOnFixtures(unittest.TestCase):
         verdict_raw = fixture["expected_verdict_raw"]
         expected_final = make_final_verdict(fixture)
 
-        with patch("formulator.formulator.OpenAI") as MockOpenAI:
-            instance = MockOpenAI.return_value
-            instance.chat.completions.create.return_value = mock_llm_response(expected_final)
+        with patch("formulator.formulator._call_llm", return_value=mock_llm_response(expected_final)):
             result = formulate(input_data, verdict_raw, MOCK_CONFIG)
 
         return result, fixture["expected_final"]
