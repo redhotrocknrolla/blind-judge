@@ -121,7 +121,7 @@ class TestE2E(unittest.TestCase):
         }
 
         with patch("parser.bj_parser.OpenAI") as MockParser, \
-             patch("openai.OpenAI") as MockLegacy:
+             patch("judge.OpenAI") as MockLegacy:
 
             MockParser.return_value.chat.completions.create.return_value = mock_response(parsed_facts)
             MockLegacy.return_value.chat.completions.create.return_value = mock_response(legacy_response)
