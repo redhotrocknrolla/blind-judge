@@ -47,6 +47,48 @@ final_verdict.json  →  APPROVE / ESCALATE / REJECT
 
 ---
 
+## Два режима — переключение автоматическое
+
+### Режим `hybrid` — формальный (Prolog)
+
+Активируется когда задача **формализуема**: есть проверяемые требования,
+вывод можно сопоставить с фактами логически, есть action trace.
+
+Домены: `diagnostic`, `research`, `planning`, `code`, `analysis`
+
+Pipeline: Parser → Prolog Core → Formulator  
+Трассировка: `mode: "hybrid"`, `rules_fired: [...]`
+
+### Режим `legacy` — творческий (LLM-судья напрямую)
+
+Активируется когда парсер возвращает `formalizable: false` и `abstain: true`.
+**Prolog не запускается.** LLM-судья оценивает вывод напрямую по четырём осям.
+
+Когда задача не формализуема:
+
+| Тип | Примеры |
+|---|---|
+| Эстетический выбор | Тон голоса бренда, визуальный стиль, нейминг |
+| Стратегическая позиция | Выбор между двумя равноправными рыночными стратегиями |
+| Творческое решение | Концепция кампании, выбор нарратива |
+| Вкусовой выбор | «Лучше ли это звучит?», «Нравится ли аудитории?» |
+
+В legacy-режиме используются те же четыре оси проверки:
+1. **Tool loop detection** — повторяющиеся вызовы с одинаковыми аргументами
+2. **Байесовская согласованность** — уверенность вывода vs сила доказательств
+3. **Логическая корректность** — следует ли conclusion из facts
+4. **Confirmation bias** — искал ли агент опровержения или только подтверждения
+
+В субъективных задачах `ESCALATE` предпочтительнее `REJECT`: нет «неправильного»
+ответа, но есть «недостаточно обоснованный».
+
+Трассировка: `mode: "legacy"`, `rules_fired: []`
+
+**Граница между режимами:** если в задаче есть хотя бы один falsifiable claim
+(число, метрика, логический вывод из данных) — она формализуема и идёт через Prolog.
+
+---
+
 ## Что проверяет
 
 Четыре базовых правила Prolog:
@@ -342,10 +384,23 @@ python3 tests/user_rules_test.py
 
 Результаты прогонов через CLI-режим без API — см. [`docs/live_tests.md`](docs/live_tests.md):
 
-| Сценарий | Домен | Вердикт | Issues |
-|---|---|---|---|
-| Агент диагностирует Redis, игнорирует Gateway log | diagnostic | REJECT 0.17 | confirmation_bias, process_loop, weak_evidence |
-| Продуктовый агент рекомендует запуск push-уведомлений | planning | REJECT 0.16 | confirmation_bias, process_loop, weak_evidence |
+| Сценарий | Домен | Режим | Вердикт | Issues |
+|---|---|---|---|---|
+| Агент диагностирует Redis, игнорирует Gateway log | diagnostic | hybrid | REJECT 0.17 | confirmation_bias, process_loop, weak_evidence |
+| Продуктовый агент рекомендует запуск push-уведомлений | planning | hybrid | REJECT 0.16 | confirmation_bias, process_loop, weak_evidence |
+| Брендинговый агент выбирает тон голоса | brand strategy | **legacy** | ESCALATE 0.38 | confirmation_bias, weak_evidence, unsupported_conclusion |
+
+---
+
+## Скиллы
+
+Два скилла документируют каждый режим — используй как справочник при интеграции:
+
+| Файл | Режим | Когда читать |
+|---|---|---|
+| [`skills/judge_formal.md`](skills/judge_formal.md) | hybrid | Prolog-правила, confidence scoring, пользовательские правила |
+| [`skills/judge_creative.md`](skills/judge_creative.md) | legacy | Субъективные задачи, четыре оси LLM-проверки, граница формализуемости |
+| [`SKILL.md`](SKILL.md) | оба | Интеграция: сценарии A/B/C, форматы входа/выхода, поведение при вердиктах |
 
 ---
 
