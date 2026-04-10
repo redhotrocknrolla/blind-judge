@@ -1,51 +1,41 @@
 # Blind Judge
 
 Гибридный аудитор для мультиагентных систем: LLM-парсер + Prolog-ядро +
-LLM-формулировщик. Подключаемая библиотека для CLI-сервисов с роутером
-скиллов.
+LLM-формулировщик. Встраивается в цепочку вызовов оркестратора как фильтр.
 
-Встраивается в цепочку вызовов оркестратора как фильтр. Два режима работы:
-локальный (прямой вызов) и удалённый (HTTP POST). Не имеет собственной
-модели — использует LLM клиента через OpenAI-совместимый интерфейс.
+Два режима работы: локальный (прямой вызов/subprocess) и удалённый (HTTP POST).
+Не имеет собственной модели — использует LLM клиента через OpenAI-совместимый
+интерфейс.
 
 См. `CONTRACT.md` — единственный источник истины по архитектуре.
 
-## Статус: Sprint 3 — LLM-формулировщик
+## Статус: Sprint 4 — оркестратор + API
 
 В этом коммите:
 
-- `schemas/` — четыре JSON-схемы, фиксирующие контракты между компонентами.
-- `tests/fixtures/` — корпус из 6 размеченных кейсов.
-- `src/core/` — Prolog-ядро: `facts_loader.pl`, `blind_judge.pl`, `verdict.pl`.
-- `src/parser/prompts/parser_v1.md` — промпт парсера с контролируемым словарём.
-- `src/parser/bj_parser.py` — вызов LLM, валидация JSON Schema, retry, abstain.
-- `src/formulator/prompts/formulator_v1.md` — промпт формулировщика.
-- `src/formulator/formulator.py` — генерация feedback, защита структурных полей.
+- `src/core/` — Prolog-ядро + Python-мост (`run_core.py`).
+- `src/parser/` — промпт и `bj_parser.py`.
+- `src/formulator/` — промпт и `formulator.py`.
+- `src/judge.py` — оркестратор: parser → core → formulator, legacy fallback.
+- `src/api.py` — FastAPI сервер, `POST /audit`, `GET /health`.
 - `src/config.py` — конфиг из `~/.blind-judge/config.yaml` или env.
-- `tests/core.plt` — 16 plunit-тестов ядра.
-- `tests/parser_test.py` — тесты парсера с моком LLM.
-- `tests/formulator_test.py` — тесты формулировщика с моком LLM.
+- `cli.py` — точка входа: `blind-judge serve` / `blind-judge audit`.
 
-**Запуск тестов:**
+## Быстрый старт
+
+**Установка зависимостей:**
 
 ```bash
-# Prolog-ядро
-swipl -g "load_files('tests/core.plt'), run_tests, halt" -t halt
-
-# Парсер
-python3 tests/parser_test.py
-
-# Формулировщик
-python3 tests/formulator_test.py
+pip3 install anthropic openai fastapi uvicorn pyyaml jsonschema
 ```
 
-## Конфигурация
+**Конфигурация:**
 
 ```yaml
 # ~/.blind-judge/config.yaml
 llm:
-  base_url: "https://api.anthropic.com"  # или localhost если модель локальная
-  api_key: "sk-ant-..."                  # или через BLIND_JUDGE_LLM_API_KEY
+  base_url: "https://api.anthropic.com"  # или localhost для локальной модели
+  api_key: "sk-ant-..."                  # или BLIND_JUDGE_LLM_API_KEY
   model: "claude-haiku-4-5"
 server:
   host: "127.0.0.1"
@@ -55,20 +45,63 @@ parser:
   double_check: false
 ```
 
+**Локальный запуск сервера:**
+
+```bash
+python3 cli.py serve
+# Сервер на http://127.0.0.1:8080
+```
+
+**Аудит файла напрямую:**
+
+```bash
+python3 cli.py audit input.json --pretty
+```
+
+**HTTP запрос:**
+
+```bash
+curl -X POST http://localhost:8080/audit \
+  -H "Content-Type: application/json" \
+  -d @input.json
+```
+
+## Запуск тестов
+
+```bash
+# Prolog-ядро (детерминированные)
+swipl -g "load_files('tests/core.plt'), run_tests, halt" -t halt
+
+# Парсер (мок LLM)
+python3 tests/parser_test.py
+
+# Формулировщик (мок LLM)
+python3 tests/formulator_test.py
+
+# E2E — полный путь, реальный Prolog, мок LLM
+python3 tests/e2e_test.py
+```
+
+## Архитектура
+POST /audit
+│
+├── [Parser LLM]     prompt → parsed_facts.json
+│
+├── formalizable?
+│     ├── да  → [Prolog Core] → verdict_raw.json
+│     │              └── [Formulator LLM] → final_verdict.json
+│     └── нет → [Legacy LLM Judge] → final_verdict.json (mode=legacy)
+│
+└── response: final_verdict.json
+
 ## Что дальше
 
-**Sprint 4 — оркестратор + API.** Склейка parser → core → formulator.
-FastAPI сервер с `POST /audit`. Локальный и удалённый режим.
-Legacy fallback при `abstain=true`.
-
-## Расширение корпуса
-
-6 фикстур — минимум для запуска ядра. До Sprint 6 нужно дойти до 100+.
-Формат фикстуры описан в `tests/fixtures/README.md`.
+**Sprint 5 — пользовательские правила.** Механизм подключения через
+`--rules path.pl` или `BLIND_JUDGE_RULES`. Защита базовых правил.
+Примеры в `src/examples/user_rules/`.
 
 ## Соглашения
 
 - `schema_version` всегда `"1.0"` в v1. Mismatch → fail-fast.
 - `request_id` — UUID v4, для трассировки сквозь все компоненты.
-- В фикстурах `request_id` зафиксирован, чтобы тесты были воспроизводимыми.
 - Пользовательские правила могут только **добавлять** `issue/1`, не удалять базовые.
