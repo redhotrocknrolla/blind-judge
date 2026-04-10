@@ -5,6 +5,8 @@ Blind Judge — Orchestrator
 """
 
 import sys
+import json
+import re
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -16,8 +18,7 @@ from formulator.formulator import formulate
 from openai import OpenAI
 
 
-def audit(input_data: dict, config: dict = None) -> dict:
-    """Главная точка входа. Возвращает final_verdict."""
+def audit(input_data: dict, config: dict = None, user_rules: str = None) -> dict:
     if config is None:
         config = load_config()
 
@@ -28,8 +29,8 @@ def audit(input_data: dict, config: dict = None) -> dict:
     if parsed_facts["parser_meta"]["abstain"]:
         return _legacy_audit(input_data, parsed_facts, config)
 
-    # Шаг 3: Prolog-ядро
-    verdict_raw = run_core(parsed_facts)
+    # Шаг 3: Prolog-ядро (с опциональными пользовательскими правилами)
+    verdict_raw = run_core(parsed_facts, user_rules=user_rules)
 
     # Шаг 4: формулировщик
     final_verdict = formulate(input_data, verdict_raw, config)
@@ -38,12 +39,6 @@ def audit(input_data: dict, config: dict = None) -> dict:
 
 
 def _legacy_audit(input_data: dict, parsed_facts: dict, config: dict) -> dict:
-    """
-    Legacy-режим для нефоpмализуемых задач.
-    Вызывает LLM напрямую как монолитного судью.
-    """
-    import json
-
     llm_cfg = config["llm"]
     client = OpenAI(base_url=llm_cfg["base_url"], api_key=llm_cfg["api_key"])
 
@@ -62,7 +57,6 @@ def _legacy_audit(input_data: dict, parsed_facts: dict, config: dict) -> dict:
             max_tokens=1024,
             messages=[{"role": "user", "content": legacy_prompt}]
         )
-        import re
         text = response.choices[0].message.content.strip()
         match = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", text)
         if match:

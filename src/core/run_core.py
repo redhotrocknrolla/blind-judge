@@ -12,7 +12,7 @@ ROOT = Path(__file__).parent.parent.parent
 CORE_DIR = Path(__file__).parent
 
 
-def run_core(parsed_facts: dict) -> dict:
+def run_core(parsed_facts: dict, user_rules: str = None) -> dict:
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".json", delete=False, encoding="utf-8"
     ) as f_in:
@@ -23,9 +23,16 @@ def run_core(parsed_facts: dict) -> dict:
     verdict_pl      = str(CORE_DIR / "verdict.pl").replace("\\", "/")
     input_file_fwd  = input_file.replace("\\", "/")
 
+    # Пользовательские правила — только добавляем после базовых
+    user_rules_clause = ""
+    if user_rules:
+        user_rules_fwd = str(user_rules).replace("\\", "/")
+        user_rules_clause = f"['{user_rules_fwd}'],"
+
     prolog_goal = (
         f"['{facts_loader_pl}'],"
         f"['{verdict_pl}'],"
+        f"{user_rules_clause}"
         f"load_facts('{input_file_fwd}'),"
         f"final_verdict(V),"
         f"unique_issues(Issues),"
@@ -71,7 +78,9 @@ def run_core(parsed_facts: dict) -> dict:
 
         output = result.stdout.strip()
         if not output:
-            raise RuntimeError(f"Prolog core returned empty output.\nstderr:\n{result.stderr}")
+            raise RuntimeError(
+                f"Prolog core returned empty output.\nstderr:\n{result.stderr}"
+            )
 
         verdict_raw = json.loads(output)
         verdict_raw = _enrich_issues(verdict_raw, parsed_facts)
@@ -80,6 +89,13 @@ def run_core(parsed_facts: dict) -> dict:
 
     finally:
         Path(input_file).unlink(missing_ok=True)
+
+
+def _fix_types(verdict_raw: dict) -> dict:
+    pmt = verdict_raw.get("parser_meta_passthrough", {})
+    if isinstance(pmt.get("abstained"), str):
+        pmt["abstained"] = pmt["abstained"].lower() == "true"
+    return verdict_raw
 
 
 def _enrich_issues(verdict_raw: dict, parsed_facts: dict) -> dict:
@@ -125,7 +141,8 @@ def _action_repeat_facts(pf: dict) -> list:
     facts = []
     for g in pf.get("action_patterns", {}).get("repeated_groups", []):
         facts.append(
-            f'action_repeat({g["name"]}, "{g["args_signature"]}", {g["occurrences"]}, {str(g["new_info_between"]).lower()})'
+            f'action_repeat({g["name"]}, "{g["args_signature"]}", '
+            f'{g["occurrences"]}, {str(g["new_info_between"]).lower()})'
         )
     return facts
 
@@ -163,16 +180,10 @@ def _unsupported_facts(pf: dict) -> list:
             req_id = cov["requirement_id"]
             for req in pf.get("task_analysis", {}).get("requirements", []):
                 if req["id"] == req_id:
-                    facts.append(f'requirement({req_id}, {req["kind"]}, "{req["text"]}")')
+                    facts.append(
+                        f'requirement({req_id}, {req["kind"]}, "{req["text"]}")'
+                    )
                     facts.append(
                         f'requirement_coverage({req_id}, false, _, {cov["parser_confidence"]})'
                     )
     return facts
-
-
-def _fix_types(verdict_raw: dict) -> dict:
-    """Исправляем типы после JSON парсинга из Prolog."""
-    pmt = verdict_raw.get("parser_meta_passthrough", {})
-    if isinstance(pmt.get("abstained"), str):
-        pmt["abstained"] = pmt["abstained"].lower() == "true"
-    return verdict_raw

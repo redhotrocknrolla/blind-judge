@@ -18,18 +18,22 @@ from judge import audit
 
 def cmd_serve(args):
     import uvicorn
+    import os
     cfg = load_config()
     host = args.host or cfg["server"]["host"]
     port = args.port or cfg["server"]["port"]
+    if args.rules:
+        os.environ["BLIND_JUDGE_RULES"] = args.rules
     print(f"[blind-judge] Starting server on {host}:{port}")
     uvicorn.run("api:app", host=host, port=port, reload=False, app_dir="src")
 
 
 def cmd_audit(args):
     cfg = load_config()
+    user_rules = args.rules or cfg.get("rules", {}).get("path")
     with open(args.input, encoding="utf-8") as f:
         input_data = json.load(f)
-    result = audit(input_data, cfg)
+    result = audit(input_data, cfg, user_rules=user_rules)
     indent = 2 if args.pretty else None
     print(json.dumps(result, ensure_ascii=False, indent=indent))
 
@@ -42,11 +46,13 @@ def main():
     serve_p = sub.add_parser("serve", help="Запустить HTTP сервер")
     serve_p.add_argument("--host", default=None)
     serve_p.add_argument("--port", type=int, default=None)
+    serve_p.add_argument("--rules", default=None, help="Путь к .pl файлу с пользовательскими правилами")
 
     # audit
     audit_p = sub.add_parser("audit", help="Прогнать input.json локально")
     audit_p.add_argument("input", help="Путь к input.json")
     audit_p.add_argument("--pretty", action="store_true")
+    audit_p.add_argument("--rules", default=None, help="Путь к .pl файлу с пользовательскими правилами")
 
     args = parser.parse_args()
 
