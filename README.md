@@ -1,70 +1,65 @@
 # Blind Judge
 
 Гибридный аудитор для мультиагентных систем: LLM-парсер + Prolog-ядро +
-LLM-формулировщик. Самостоятельный сервис-фильтр, встраивается в цепочку
-вызовов CLI оркестратора.
+LLM-формулировщик. Подключаемая библиотека для CLI-сервисов с роутером
+скиллов.
 
-Не имеет собственной LLM — использует модель клиента через OpenAI-совместимый
-интерфейс. Работает локально или удалённо.
+Встраивается в цепочку вызовов оркестратора как фильтр. Два режима работы:
+локальный (прямой вызов) и удалённый (HTTP POST). Не имеет собственной
+модели — использует LLM клиента через OpenAI-совместимый интерфейс.
 
 См. `CONTRACT.md` — единственный источник истины по архитектуре.
 
-## Статус: Sprint 2 — LLM-парсер
+## Статус: Sprint 3 — LLM-формулировщик
 
 В этом коммите:
 
 - `schemas/` — четыре JSON-схемы, фиксирующие контракты между компонентами.
-- `tests/fixtures/` — стартовый корпус из 6 размеченных кейсов.
+- `tests/fixtures/` — корпус из 6 размеченных кейсов.
 - `src/core/` — Prolog-ядро: `facts_loader.pl`, `blind_judge.pl`, `verdict.pl`.
-- `src/config.py` — читает `~/.blind-judge/config.yaml` и переменные окружения.
 - `src/parser/prompts/parser_v1.md` — промпт парсера с контролируемым словарём.
-- `src/parser/bj_parser.py` — вызов LLM клиента, валидация схемы, retry, abstain.
-- `tests/parser_test.py` — тесты парсера на моке (retry, abstain, schema validation).
+- `src/parser/bj_parser.py` — вызов LLM, валидация JSON Schema, retry, abstain.
+- `src/formulator/prompts/formulator_v1.md` — промпт формулировщика.
+- `src/formulator/formulator.py` — генерация feedback, защита структурных полей.
+- `src/config.py` — конфиг из `~/.blind-judge/config.yaml` или env.
+- `tests/core.plt` — 16 plunit-тестов ядра.
+- `tests/parser_test.py` — тесты парсера с моком LLM.
+- `tests/formulator_test.py` — тесты формулировщика с моком LLM.
 
-**Запуск тестов ядра:**
+**Запуск тестов:**
 
 ```bash
+# Prolog-ядро
 swipl -g "load_files('tests/core.plt'), run_tests, halt" -t halt
-```
 
-**Запуск тестов парсера:**
-
-```bash
+# Парсер
 python3 tests/parser_test.py
+
+# Формулировщик
+python3 tests/formulator_test.py
 ```
 
 ## Конфигурация
 
-Создай `~/.blind-judge/config.yaml`:
-
 ```yaml
+# ~/.blind-judge/config.yaml
 llm:
-  base_url: "https://api.anthropic.com"   # или локальный эндпоинт
-  api_key: "sk-ant-..."                    # ключ клиента
+  base_url: "https://api.anthropic.com"  # или localhost если модель локальная
+  api_key: "sk-ant-..."                  # или через BLIND_JUDGE_LLM_API_KEY
   model: "claude-haiku-4-5"
-
 server:
   host: "127.0.0.1"
   port: 8080
-
 parser:
   max_retries: 2
   double_check: false
 ```
 
-Или через переменные окружения:
-
-```bash
-export BLIND_JUDGE_LLM_BASE_URL="https://api.anthropic.com"
-export BLIND_JUDGE_LLM_API_KEY="sk-ant-..."
-export BLIND_JUDGE_LLM_MODEL="claude-haiku-4-5"
-```
-
 ## Что дальше
 
-**Sprint 3 — формулировщик.** Промпт + `formulator.py`. Принимает
-`verdict_raw.json`, генерирует `feedback` и `alternative_hypothesis`.
-Не меняет структурные поля — только текст.
+**Sprint 4 — оркестратор + API.** Склейка parser → core → formulator.
+FastAPI сервер с `POST /audit`. Локальный и удалённый режим.
+Legacy fallback при `abstain=true`.
 
 ## Расширение корпуса
 
