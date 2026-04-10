@@ -3,30 +3,23 @@
 Гибридный аудитор для мультиагентных систем: LLM-парсер + Prolog-ядро +
 LLM-формулировщик. Встраивается в цепочку вызовов оркестратора как фильтр.
 
-Два режима работы: локальный (прямой вызов/subprocess) и удалённый (HTTP POST).
+Два режима работы: локальный (прямой вызов) и удалённый (HTTP POST).
 Не имеет собственной модели — использует LLM клиента через OpenAI-совместимый
-интерфейс.
+интерфейс. Расширяется пользовательскими Prolog-правилами.
 
 См. `CONTRACT.md` — единственный источник истины по архитектуре.
 
-## Статус: Sprint 4 — оркестратор + API
+## Статус: Sprint 5 — пользовательские правила
 
-В этом коммите:
-
-- `src/core/` — Prolog-ядро + Python-мост (`run_core.py`).
-- `src/parser/` — промпт и `bj_parser.py`.
-- `src/formulator/` — промпт и `formulator.py`.
-- `src/judge.py` — оркестратор: parser → core → formulator, legacy fallback.
-- `src/api.py` — FastAPI сервер, `POST /audit`, `GET /health`.
-- `src/config.py` — конфиг из `~/.blind-judge/config.yaml` или env.
-- `cli.py` — точка входа: `blind-judge serve` / `blind-judge audit`.
+Все спринты закрыты. Система полностью собрана.
 
 ## Быстрый старт
 
-**Установка зависимостей:**
+**Зависимости:**
 
 ```bash
-pip3 install anthropic openai fastapi uvicorn pyyaml jsonschema
+pip3 install openai fastapi uvicorn pyyaml jsonschema
+# SWI-Prolog 10.0.2+: https://www.swi-prolog.org/Download.html
 ```
 
 **Конфигурация:**
@@ -45,17 +38,21 @@ parser:
   double_check: false
 ```
 
-**Локальный запуск сервера:**
+**Запуск сервера:**
 
 ```bash
 python3 cli.py serve
-# Сервер на http://127.0.0.1:8080
+# → http://127.0.0.1:8080
+
+# С пользовательскими правилами:
+python3 cli.py serve --rules src/examples/user_rules/medical_research.pl
 ```
 
 **Аудит файла напрямую:**
 
 ```bash
 python3 cli.py audit input.json --pretty
+python3 cli.py audit input.json --rules my_rules.pl --pretty
 ```
 
 **HTTP запрос:**
@@ -66,42 +63,75 @@ curl -X POST http://localhost:8080/audit \
   -d @input.json
 ```
 
-## Запуск тестов
-
-```bash
-# Prolog-ядро (детерминированные)
-swipl -g "load_files('tests/core.plt'), run_tests, halt" -t halt
-
-# Парсер (мок LLM)
-python3 tests/parser_test.py
-
-# Формулировщик (мок LLM)
-python3 tests/formulator_test.py
-
-# E2E — полный путь, реальный Prolog, мок LLM
-python3 tests/e2e_test.py
-```
-
 ## Архитектура
 POST /audit
 │
 ├── [Parser LLM]     prompt → parsed_facts.json
 │
 ├── formalizable?
-│     ├── да  → [Prolog Core] → verdict_raw.json
-│     │              └── [Formulator LLM] → final_verdict.json
+│     ├── да  → [Prolog Core + user_rules.pl] → verdict_raw.json
+│     │                └── [Formulator LLM] → final_verdict.json
 │     └── нет → [Legacy LLM Judge] → final_verdict.json (mode=legacy)
 │
 └── response: final_verdict.json
 
-## Что дальше
+## Пользовательские правила
 
-**Sprint 5 — пользовательские правила.** Механизм подключения через
-`--rules path.pl` или `BLIND_JUDGE_RULES`. Защита базовых правил.
-Примеры в `src/examples/user_rules/`.
+Правила подключаются через `--rules path.pl` или `BLIND_JUDGE_RULES`.
+Могут только **добавлять** новые `issue/1` — базовые правила защищены.
+
+```prolog
+% my_rules.pl
+:- multifile issue/1.
+
+issue(missing_rct) :-
+    task_type(research),
+    claim(_, _, high),
+    \+ evidence(_, _, _, direct_support, strong, _).
+
+verdict(escalate) :-
+    \+ verdict(reject),
+    issue(missing_rct).
+```
+
+Примеры: `src/examples/user_rules/medical_research.pl`, `code_review.pl`.
+
+## Запуск тестов
+
+```bash
+# Prolog-ядро (детерминированные)
+swipl -g "load_files('tests/core.plt'), run_tests, halt" -t halt
+
+# Парсер, формулировщик, e2e, пользовательские правила
+python3 tests/parser_test.py
+python3 tests/formulator_test.py
+python3 tests/e2e_test.py
+python3 tests/user_rules_test.py
+```
+
+## Структура репозитория
+blind-judge/
+├── CONTRACT.md                        ← единственный источник истины
+├── cli.py                             ← точка входа
+├── schemas/                           ← JSON Schema для всех контрактов
+├── src/
+│   ├── config.py                      ← конфиг
+│   ├── judge.py                       ← оркестратор
+│   ├── api.py                         ← FastAPI сервер
+│   ├── parser/                        ← промпт + bj_parser.py
+│   ├── core/                          ← Prolog ядро + Python мост
+│   ├── formulator/                    ← промпт + formulator.py
+│   └── examples/user_rules/           ← примеры пользовательских правил
+└── tests/
+├── core.plt                       ← plunit тесты ядра
+├── parser_test.py
+├── formulator_test.py
+├── e2e_test.py
+└── user_rules_test.py
 
 ## Соглашения
 
 - `schema_version` всегда `"1.0"` в v1. Mismatch → fail-fast.
 - `request_id` — UUID v4, для трассировки сквозь все компоненты.
 - Пользовательские правила могут только **добавлять** `issue/1`, не удалять базовые.
+- При `abstain=true` — legacy режим, Prolog-ядро не запускается.
